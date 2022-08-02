@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>canvasWorker</title>
+    <script src="./js/d3.min.js"></script>
+    <script src="./js/d3-force-reuse.js"></script>
+    <style>
+        #progress {
+            position: fixed;
+            top: 0;
+            left: -6px;
+            width: 0%;
+            height: 5px;
+            background: red;
+        }
+
+        #progress:before {
+            width: 20px;
+            right: 0;
+            clip: rect(-6px, 22px, 14px, 10px);
+            width: 180px;
+            right: -80px;
+            clip: rect(-6px, 90px, 14px, -6px);
+        }
+
+        #progress:after {
+            content: "";
+            position: absolute;
+            height: 2px;
+            opacity: 0.3;
+            box-shadow: red 1px 0 6px 1px;
+            border-radius: 100%;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="progress"></div>
+    <canvas width="3000" height="3000"></canvas>
+    <script>
+
+        const meter = document.querySelector("#progress"),
+            canvas = document.querySelector("canvas"),
+            context = canvas.getContext("2d"),
+            width = +canvas.width,
+            height = +canvas.height,
+            type = "1" // 0-canvas ; 1-svg
+
+        const setting = {
+            width: width,
+            height: height,
+            type: type
+        }
+
+        var simulation,
+            adjustable = 1,
+            adjustableTime = 1;
+        let start, end
+        //读入数据
+        d3.json("../data/dataset2/3-1.json").then(function (forceGraph) {
+
+            //为了适配案例10和11做的数据处理
+            var arrNodes = Object.keys(forceGraph.nodes); //["0","1"，"2"，"3"，·····，"99"]，获得索引
+            var nodes = [];
+            var nodesName = [];
+            var link, node;
+            var bucket = new Array(100).fill(0);
+            for (var i = 0; i < arrNodes.length; i++) {
+                nodes[i] = forceGraph.nodes[arrNodes[i]];
+                nodesName[i] = nodes[i].name;
+                if (nodes[i].bucket != -1)
+                    bucket[nodes[i].bucket]++;  //属于第几个bucket
+            }
+            var arrLinks = Object.keys(forceGraph.links);
+            var links = [];
+            for (var i = 0; i < arrLinks.length; i++) {
+                links[i] = forceGraph.links[arrLinks[i]];
+            }
+            start = new Date()
+            simulation = d3.forceSimulation(nodes)
+                // .force("charge", d3.forceManyBodySampled().strength(-80))
+                .force("charge", d3.forceManyBodyReuse().strength(-80))
+                .force("center", d3.forceCenter(width / 2, height / 2))
+                .force("collide", d3.forceCollide().radius(function (d, i) {
+                    //碰撞避免，相当于把节点当作有半径的圆，设置碰撞半径，度大的点碰撞半径大
+                    if (d["core"] == 1)
+                        return 10;
+                    else {
+                        return 8;
+                    }
+                }).strength(1))
+                //设定forceX与forceY使得它们更加聚拢在中间位置
+                .force("x", d3.forceX(width / 2).strength(0.15))
+                .force("y", d3.forceY(height / 2).strength(0.15))
+                .force("link", d3.forceLink(links).id(function (d) { return d.name; }).distance(function (d, i) {
+                    return 50;
+                }))
+                .on("tick", ticked);
+
+            function drawcanvas(data) {
+
+                //画线
+                const drawLink = d => {
+                    context.moveTo(parseInt(d.source.x), parseInt(d.source.y))
+                    context.lineTo(parseInt(d.target.x), parseInt(d.target.y))
+                }
+
+                //画圆
+                const drawNode = d => {
+                    context.moveTo(parseInt(d.x + 3), parseInt(d.y))
+                    context.arc(parseInt(d.x), parseInt(d.y), 3, 0, 2 * Math.PI)
+                }
+
+                var nodes = data.nodes,
+                    links = data.links;
+
+                meter.style.display = "none";
+
+                context.clearRect(0, 0, width, height);
+                context.save();
+                context.translate(width / 4, height / 4);
+                //迁移布局中心
+
+                context.beginPath();
+                links.forEach(drawLink);
+                context.strokeStyle = "#aaa";
+                context.stroke();
+
+                context.beginPath();
+                nodes.forEach(drawNode);
+                context.fill();
+                context.strokeStyle = "#fff";
+                context.stroke();
+
+                context.restore();
+
+            }
+            drawcanvas(forceGraph)
+
+
+            var count = 0
+            function ticked() {
+                drawcanvas(forceGraph)
+                count += 1
+                if (count > 100) {
+                    //tick100次的耗时
+                    end = new Date()
+                    simulation.stop()
+                    console.log(end - start);
+                }
+            }
+        });
+
+        function dragstarted(d) {
+            if (!d3.event.active) simulation.alphaTarget(0.3).restart();
+            d.fy = d.y;
+            d.fx = d.x;
+        }
+
+        function dragged(d) {
+            d.fx = d3.event.x;
+            d.fy = d3.event.y;
+        }
+
+        function dragended(d) {
+            if (!d3.event.active) {
+                simulation.alphaTarget(0);
+            }
+        }
+    </script>
+</body>
+
+</html>

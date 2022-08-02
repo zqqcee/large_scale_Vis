@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>canvasWorker</title>
+    <script src="./js/d3.min.js"></script>
+    <script src="./js/d3-force-reuse.js"></script>
+    <style>
+        #progress {
+            position: fixed;
+            top: 0;
+            left: -6px;
+            width: 0%;
+            height: 5px;
+            background: red;
+        }
+
+        #progress:before {
+            width: 20px;
+            right: 0;
+            clip: rect(-6px, 22px, 14px, 10px);
+            width: 180px;
+            right: -80px;
+            clip: rect(-6px, 90px, 14px, -6px);
+        }
+
+        #progress:after {
+            content: "";
+            position: absolute;
+            height: 2px;
+            opacity: 0.3;
+            box-shadow: red 1px 0 6px 1px;
+            border-radius: 100%;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="progress"></div>
+    <canvas width="3000" height="3000"></canvas>
+    <script>
+
+        const meter = document.querySelector("#progress"),
+            canvas = document.querySelector("canvas"),
+            context = canvas.getContext("2d"),
+            width = +canvas.width,
+            height = +canvas.height,
+            type = "1" // 0-canvas ; 1-svg
+
+        const setting = {
+            width: width,
+            height: height,
+            type: type
+        }
+
+        d3.json("../data/dataset1/case1.json").then(function (forceGraph) {
+            //为了适配案例10和11做的数据处理
+            var arrNodes = Object.keys(forceGraph.nodes); //["0","1"，"2"，"3"，·····，"99"]，获得索引
+            var nodes = [];
+            var nodesName = [];
+            var link, node;
+            var bucket = new Array(100).fill(0);
+            for (var i = 0; i < arrNodes.length; i++) {
+                nodes[i] = forceGraph.nodes[arrNodes[i]];
+                nodesName[i] = nodes[i].name;
+                if (nodes[i].bucket != -1)
+                    bucket[nodes[i].bucket]++;  //属于第几个bucket
+            }
+            var arrLinks = Object.keys(forceGraph.links);
+            var links = [];
+            for (var i = 0; i < arrLinks.length; i++) {
+                links[i] = forceGraph.links[arrLinks[i]];
+            }
+
+            console.time("1")//开始计时
+
+            var count = 0
+
+            const ticked = function (data) {
+                var nodes = data.nodes,
+                    links = data.links;
+
+                meter.style.display = "none";
+
+                context.clearRect(0, 0, width, height);
+                context.save();
+                //迁移布局中心
+
+                context.beginPath();
+                links.forEach(drawLink);
+                context.strokeStyle = "#aaa";
+                context.stroke();
+
+                context.beginPath();
+                nodes.forEach(drawNode);
+                context.fill();
+                context.strokeStyle = "#fff";
+                context.stroke();
+
+                context.restore();
+            
+
+            //画线
+            const drawLink = d => {
+                context.moveTo(d.source.x, d.source.y)
+                context.lineTo(d.target.x, d.target.y)
+            }
+
+            //画圆
+            const drawNode = d => {
+                context.moveTo(d.x + 3, d.y)
+                context.arc(d.x, d.y, 3, 0, 2 * Math.PI)
+            }
+
+            }
+            
+        })
+
+    </script>
+
+
+</body>
+
+</html>

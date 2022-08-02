@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>svgWorker2</title>
+    <meta charset="utf-8">
+    <style>
+        svg {
+            overflow: visible;
+        }
+
+        text.runtime {
+            text-anchor: middle;
+            font-family: sans-serif;
+            font-weight: bold;
+            fill: #888;
+            font-size: 72px;
+        }
+
+        .nodes circle {
+            stroke: #fff;
+            stroke-width: 1.5px;
+        }
+
+        #progress {
+            position: fixed;
+            top: 0;
+            left: -6px;
+            width: 0%;
+            height: 5px;
+            background: red;
+        }
+
+        #progress:before {
+            width: 20px;
+            right: 0;
+            clip: rect(-6px, 22px, 14px, 10px);
+            width: 180px;
+            right: -80px;
+            clip: rect(-6px, 90px, 14px, -6px);
+        }
+
+        #progress:after {
+            content: "";
+            position: absolute;
+            height: 2px;
+            opacity: 0.3;
+            box-shadow: red 1px 0 6px 1px;
+            border-radius: 100%;
+        }
+
+        #button-bar {
+            width: 100%;
+            height: 125px;
+            background-color: black;
+            fill: black;
+            margin-top: 65px;
+        }
+
+        button {
+            height: 125px;
+            width: 7%;
+            font-size: 50px;
+            margin-left: 4px;
+            font-weight: bold
+        }
+    </style>
+</head>
+
+<body>
+    <div id="progress"></div>
+    <svg id="d3-force" width="3000" height="3000"></svg>
+
+    <script src="https://d3js.org/d3.v5.min.js"></script>
+    <script src="./js/d3-force-reuse.js"></script>
+
+    <script>
+        d3.selectAll("button").on("click", function () {
+            console.log(this.id);
+        })
+    </script>
+
+    <script>
+
+        var svg = d3.select("#d3-force").attr('transform', 'scale(1)'),
+            width = +svg.attr("width"),
+            height = +svg.attr("height");
+
+        var simulation,
+            adjustable = 0,
+            adjustableTime = 1,
+            type = 0;
+
+        const setting = {
+            width: width,
+            height: height,
+            type: type
+        }
+        let meter = document.querySelector("#progress")
+
+
+        d3.json("../data/dataset1/case11.json").then(forceGraph => {
+            //为了适配案例10和11做的数据处理
+            var arrNodes = Object.keys(forceGraph.nodes); //["0","1"，"2"，"3"，·····，"99"]，获得索引
+            var nodes = [];
+            var nodesName = [];
+            var bucket = new Array(100).fill(0);
+            for (var i = 0; i < arrNodes.length; i++) {
+                nodes[i] = forceGraph.nodes[arrNodes[i]];
+                nodesName[i] = nodes[i].name;
+                if (nodes[i].bucket != -1)
+                    bucket[nodes[i].bucket]++;  //属于第几个bucket
+            }
+            var arrLinks = Object.keys(forceGraph.links);
+            var links = [];
+            for (var i = 0; i < arrLinks.length; i++) {
+                links[i] = forceGraph.links[arrLinks[i]];
+            }
+
+
+            let link = svg.append("g")
+                .attr("class", "links")
+
+            let node = svg.append("g")
+                .attr("class", "nodes")
+
+            let end;
+            let start = new Date();
+            const worker = new Worker("./js/worker-tick.js")
+            
+            worker.postMessage({
+                nodes: nodes,
+                links: links,
+                setting: setting
+            })
+
+            worker.onmessage = e => {
+                switch (e.data.type) {
+                    case "tick":
+                        return ticked(e.data)
+                    case "end":
+                        ended(e.data)
+                        return console.log(end - start);
+                }
+            }
+
+            const drawLayout = function (data) {
+                //设置连边数据
+                link.selectAll("line")
+                    .data(data.links)
+                    .join("line")
+                    .attr("stroke-width", function (d) {
+                        return 1;
+                    })
+                    .attr("stroke", (d, i) => {
+                        return "#b0b0b0";
+                    })
+                    .attr('x1', d => parseInt(d.source.x))
+                    .attr('x2', d => parseInt(d.target.x))
+                    .attr('y1', d => parseInt(d.source.y))
+                    .attr('y2', d => parseInt(d.target.y))
+
+                //设置节点数据
+                node.selectAll("circle")
+                    .data(data.nodes)
+                    .join("circle")
+                    // .style("stroke", "black")
+                    // .style("stroke-opacity", 0.3)
+                    .attr("r", function (d, i) {
+                        if (d["core"] == 1)
+                            return 10;
+                        else {
+                            return 8;
+                        }
+                    })
+                    .attr("fill", function (d, i) {
+                        return "#c0c0c0";
+                    })
+                    .attr('cx', d => parseInt(d.x))
+                    .attr('cy', d => parseInt(d.y))
+
+            }
+
+            const ticked = function (data) {
+                drawLayout(data)
+            }
+
+            const ended = function (data) {
+                drawLayout(data)
+                end = new Date();
+            }
+        })
+    </script>
+
+</body>
+
+</html>

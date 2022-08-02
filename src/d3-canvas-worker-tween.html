@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+	<meta charset="utf-8" />
+	<script src="./js/d3.min.js"></script>
+	<script src="./js/tween.umd.js"></script>
+
+	<title>demo--</title>
+</head>
+
+<body>
+	<canvas id="myCanvas" width="5000" height="5000" style="display: block;">
+		您的浏览器不支持 HTML5 canvas 标签。
+		····</canvas>
+
+
+	<script>
+		const width = 5000
+		height = 5000
+		color = d3.scaleOrdinal(d3.schemeCategory10)
+		var canvas = document.getElementById('myCanvas')
+		var context = canvas.getContext("2d")
+
+		let oldd;
+		let flag = true;
+		const duration = 10;
+
+
+		function tickedTween(data) {
+			context.clearRect(0, 0, width, height);
+			context.beginPath();
+			let links = data.links
+			let nodes = data.nodes;
+			//画线
+			for (let i = 0; i < links.length / 2; i++) {
+				context.moveTo(nodes[links[i * 2]].x / 2, nodes[links[i * 2]].y / 2);
+				context.lineTo(nodes[links[i * 2 + 1]].x / 2, nodes[links[i * 2 + 1]].y / 2);
+			}
+			context.strokeStyle = "#aaa";
+			context.stroke();
+
+			//画点
+			//data.nodes:{x:,y:}{...}，一个object就是一个节点的坐标信息
+			if (flag) {
+				oldd = data.nodes
+				flag = false
+				console.log(1);
+			}
+
+			for (let i = 0; i < data.nodes.length; i++) {
+				context.save();
+				context.beginPath();
+				drawNodeTween(oldd[i], data.nodes[i])
+				context.fillStyle = color(1);
+				context.fill();
+				context.restore();
+				tween.update(duration);
+
+			}
+			oldd = data.nodes
+			//缓存旧的
+		}
+
+		function ticked(data) {
+			context.clearRect(0, 0, width, height);
+			context.beginPath();
+			let links = data.links
+			let nodes = data.nodes;
+			for (let i = 0; i < links.length / 2; i++) {
+				context.moveTo(nodes[links[i * 2]].x / 2, nodes[links[i * 2]].y / 2);
+				context.lineTo(nodes[links[i * 2 + 1]].x / 2, nodes[links[i * 2 + 1]].y / 2);
+			}
+			context.strokeStyle = "#aaa";
+			context.stroke();
+
+
+			for (const node of data.nodes) {
+				context.beginPath();
+				drawNode(node)
+				context.fillStyle = color(1);
+				context.fill();
+			}
+		}
+
+		function drawNodeTween(oldp, newp) {
+			//d:每一个节点的position
+			let tween = new TWEEN.Tween(oldp).to(newp, duration).easing(TWEEN.Easing.Linear.Out).start();
+			context.moveTo(newp.x / 2 + 3, newp.y / 2);
+			context.arc(newp.x / 2, newp.y / 2, 3, 0, 2 * Math.PI);
+		}
+
+		function drawNode(newp) {
+			//d:每一个节点的position
+			context.moveTo(newp.x / 2 + 3, newp.y / 2);
+			context.arc(newp.x / 2, newp.y / 2, 3, 0, 2 * Math.PI);
+		}
+
+		// 读数据
+		d3.json("../data/dataset2/1-1.json").then(function (data) {
+
+			//DEFINE
+			let nodeInfoMap = {},
+				e = 0,
+				linkInfoMap = {};
+
+			//创建node地图
+			data.nodes.forEach(n => {
+				nodeInfoMap[n.id] || (nodeInfoMap[n.id] = {
+					index: e,
+					id: n.id
+				}, e++)
+			})
+			//创建i，linkbuffer的原型
+			let i = [];
+			data.links.forEach(e => {
+				let r = "".concat(e.source, "-").concat(e.target); //每条边对应的唯一id
+				linkInfoMap[r] || (i.push(nodeInfoMap[e.source].index, nodeInfoMap[e.target].index),
+					linkInfoMap[r] = {
+						id: r
+					})
+			});
+			//得到linkbuffer
+			let linkBuffer = new Int32Array(i);
+
+			//数据IO计时
+			let end, count = 0
+
+			//worker创建
+			const worker = new Worker('./js/d3-canvas-worker-transfer.js')
+
+			//message创建
+			let d = {
+				nodesCount: Object.keys(nodeInfoMap).length,
+				linksBuffer: linkBuffer.buffer
+			}
+			//worker
+			worker.postMessage(d, [d.linksBuffer])
+			worker.onmessage = e => {
+				let nodes = [];
+				let links = [];
+				let tickNodes = new Int32Array(e.data.nodes); //得到了所有nodes的平铺x，y坐标
+				for (let i = 0; i < tickNodes.length / 2; i++) {
+					nodes.push({
+						x: tickNodes[i * 2],
+						y: tickNodes[i * 2 + 1]
+					})
+				}
+				let tickdata = {
+					nodes: nodes,
+					links: i
+				}
+				if (e.data.count < 100) {
+					tickedTween(tickdata)
+				} else {
+					ticked(tickdata);
+
+				}
+			}
+
+
+
+		});
+	</script>
+</body>
+
+</html>

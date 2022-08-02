@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>timeTest</title>
+
+</head>
+
+<body>
+    <script src="./js/d3.min.js"></script>
+    <script src="./js/d3-force-reuse.js"></script>
+
+    <canvas id="canvas" width="3000" height="3000"></canvas>
+
+
+    <script>
+        const svg = d3.select("svg")
+
+        let layoutstart, layoutend, renderstart, renderend;
+
+        const drawcanvas = function drawcanvas() {
+            var simulation,
+                adjustable = 0,
+                adjustableTime = 1;
+            const canvas = document.querySelector("canvas"),
+                context = canvas.getContext("2d"),
+                width = +canvas.width,
+                height = +canvas.height;
+
+            d3.json("../data/dataset1/case1.json").then(forceGraph => {
+                //为了适配案例10和11做的数据处理
+                var arrNodes = Object.keys(forceGraph.nodes); //["0","1"，"2"，"3"，·····，"99"]，获得索引
+                var nodes = [];
+                var nodesName = [];
+                var link, node;
+
+                var bucket = new Array(100).fill(0);
+                for (var i = 0; i < arrNodes.length; i++) {
+                    nodes[i] = forceGraph.nodes[arrNodes[i]];
+                    nodesName[i] = nodes[i].name;
+                    if (nodes[i].bucket != -1)
+                        bucket[nodes[i].bucket]++; //属于第几个bucket
+                }
+                var arrLinks = Object.keys(forceGraph.links);
+                var links = [];
+
+                for (var i = 0; i < arrLinks.length; i++) {
+                    links[i] = forceGraph.links[arrLinks[i]];
+                }
+
+
+                const drawLayout = function (data) {
+                    renderstart = new Date();
+                    var nodes = data.nodes,
+                        links = data.links;
+
+
+                    context.clearRect(0, 0, width, height);
+                    //清空画布
+                    context.save();
+                    // context.translate(width / 2, height / 2);
+                    //迁移布局中心
+
+                    context.beginPath();
+                    links.forEach(drawLink);
+                    context.strokeStyle = "#aaa";
+                    context.stroke();
+
+                    context.beginPath();
+                    nodes.forEach(drawNode);
+                    context.fill();
+                    context.strokeStyle = "#fff";
+                    context.stroke();
+
+                    context.restore();
+                    renderend = new Date();
+                }
+                //画线
+                const drawLink = d => {
+                    context.moveTo(parseInt(d.source.x), parseInt(d.source.y))
+                    context.lineTo(parseInt(d.target.x), parseInt(d.target.y))
+                }
+                //画圆
+                const drawNode = d => {
+                    context.moveTo(parseInt(d.x) + 3, parseInt(d.y))
+                    context.arc(parseInt(d.x), parseInt(d.y), 3, 0, 2 * Math.PI)
+                }
+
+                const layout = function () {
+                    layoutstart = new Date();
+                    let simulation = d3.forceSimulation(nodes)
+                        // .force("charge", d3.forceManyBodySampled().strength(-80))
+                        .force("charge", d3.forceManyBodyReuse().strength(-80))
+                        .force("center", d3.forceCenter(width / 2, height / 2))
+                        .force("collide", d3.forceCollide().radius(function (d, i) {
+                            //碰撞避免，相当于把节点当作有半径的圆，设置碰撞半径，度大的点碰撞半径大
+                            if (d["core"] == 1)
+                                return 10;
+                            else {
+                                return 8;
+                            }
+                        }).strength(1))
+                        //设定forceX与forceY使得它们更加聚拢在中间位置
+                        .force("x", d3.forceX(width / 2).strength(0.15))
+                        .force("y", d3.forceY(height / 2).strength(0.15))
+                        .force("link", d3.forceLink(links).id(function (d) {
+                            return d.name;
+                        }).distance(function (d, i) {
+                            return 50;
+                        }))
+                        .stop()
+
+                    for (let i = 0; i < Math.ceil(Math.log(simulation.alphaMin()) / Math.log(1 -
+                            simulation.alphaDecay())); ++i) {
+                        simulation.tick()
+                    }
+                    layoutend = new Date();
+                }
+
+                layout();
+
+                drawLayout({
+                    links: links,
+                    nodes: nodes
+                })
+
+                console.log("渲染时间：", renderend - renderstart);
+                console.log("布局时间：", layoutend - layoutstart);
+
+
+            })
+
+
+        }
+
+        drawcanvas()
+    </script>
+
+</body>
+
+</html>

@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+	<meta charset="utf-8" />
+	<script src="./js/d3.min.js"></script>
+	<title>demo--</title>
+</head>
+
+<body>
+	<canvas id="myCanvas" width="5000" height="5000" style="display: block;">
+		您的浏览器不支持 HTML5 canvas 标签。
+		····</canvas>
+
+
+	<script>
+		const width = 5000
+		height = 5000
+		color = d3.scaleOrdinal(d3.schemeCategory10)
+		var canvas = document.getElementById('myCanvas')
+		var context = canvas.getContext("2d")
+
+
+
+		function ticked(data) {
+			context.clearRect(0, 0, width, height);
+			context.beginPath();
+			data.links.forEach(drawLink);
+			context.strokeStyle = "#aaa";
+			context.stroke();
+			context.strokeStyle = "#fff";
+			for (const node of data.nodes) {
+				context.beginPath();
+				drawNode(node)
+				context.fillStyle = color(node.type);
+				// console.log(color(node.type))
+				context.fill();
+				context.stroke();
+			}
+			context.stroke();
+		}
+
+
+
+		function drawLink(d) {
+			// 画线
+			context.moveTo(d.source.x / 2, d.source.y / 2);
+			context.lineTo(d.target.x / 2, d.target.y / 2);
+		}
+
+		function drawNode(d) {
+			// 画点
+			context.moveTo(d.x / 2 + 3, d.y / 2);
+			context.arc(d.x / 2, d.y / 2, 3, 0, 2 * Math.PI);
+		}
+
+
+		// 读数据
+		d3.json("../data/dataset2/6-1.json").then(function (data) {
+
+			//console.log(data);
+			var nodes = data.nodes
+			var links = data.links
+
+			const worker = new Worker('./js/d3-canvas-worker.js')
+
+			worker.postMessage({
+				nodes: nodes,
+				links: links,
+			})
+
+			let end, count = 0
+			worker.onmessage = e => {
+				if (count!=10) {
+					count++;
+				} else {
+					count++;
+					end = new Date();
+				}
+				ticked(e.data)
+				console.log(1);
+			}
+
+
+
+
+
+			// 拖动效果
+			// drag = simulation => {
+			//   function dragsubject(event) {
+			//     return simulation.find(event.x, event.y);
+			//   }
+
+			//   function dragstarted(event) {
+			//     if (!event.active) simulation.alphaTarget(0.3).restart();
+			//     event.subject.fx = event.subject.x;
+			//     event.subject.fy = event.subject.y;
+			//   }
+
+			//   function dragged(event) {
+			//     event.subject.fx = event.x;
+			//     event.subject.fy = event.y;
+			//   }
+
+			//   function dragended(event) {
+			//     if (!event.active) simulation.alphaTarget(0);
+			//     event.subject.fx = null;
+			//     event.subject.fy = null;
+			//   }
+
+			//   return d3.drag()
+			//       .subject(dragsubject)
+			//       .on("start", dragstarted)
+			//       .on("drag", dragged)
+			//       .on("end", dragended);
+			// }
+
+
+		});
+	</script>
+</body>
+
+</html>
